@@ -1,0 +1,3 @@
+[submodule "tiny"]
+	path = tiny
+	url = git@github.com:sagars729/tiny.git
