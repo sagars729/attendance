@@ -1,27 +1,39 @@
-print('Importing External Libraries')
 import matlab.engine
 import cv2 as cv
 import numpy as np
 import multiprocessing
 from multiprocessing import pool
 import os
+import sys
+import _pickle as cPickle
+from munkres import Munkres
+import _pickle as cPickle
+import argparse
 try:
 	from secrets import token_hex
 except ImportError:
 	from os import urandom
 	def token_hex(nbytes=None):
 		return urandom(nbytes).hex()
-from munkres import Munkres
-import _pickle as cPickle
 print('Imported External Libraries')
-print("Changing Working Directory To Tiny")
-os.chdir("tiny")#eng.eval("cd tiny")
 
-print("Starting Matlab Engine")
+### CMD LINE ARGS ###
+ap = argparse.ArgumentParser()
+ap.add_argument('-v', '--video',help='Path to Video file')
+ap.add_argument('-w', '--webcam',help='Enable WebCam',action="store_true",default=False)
+ap.add_argument('-n', '--number-of-frames',type=int,default=-1,help="Maximum Number of Frames To Capture")
+ap.add_argument('-s', '--skip-rate',type=int,default=1,help="Skip Rate of Frames")
+ap.add_argument('-b', '--boxes',help="Path To Bounding Boxes File")
+ap.add_argument('-t', '--track',help="Enable Tracking",action="store_true",default=False)
+ap.add_argument('--no-display',help="Disables Display",action="store_true",default=False)
+args = vars(ap.parse_args())
+#### INIT SCRIPT ####
+os.chdir("tiny")#eng.eval("cd tiny")
+print("Changed Working Directory To Tiny")
 eng = matlab.engine.start_matlab()
 print("Matlab Engine Spun Up")
 m = Munkres()
-
+#####################
 class Box:	
 	def __init__(self,vals,i_d = None):
 		self.coord = vals
@@ -50,7 +62,7 @@ class Box:
 		return str(self.coord)
 
 def getImageBoxes(frame):
-	fname = token_hex(6) + '.jpg'
+	fname = 'temp_pics/' + token_hex(6) + '.jpg'
 	cv.imwrite(fname,frame)
 	cmd = "tiny_face_detector('"+fname+"','"+fname+"',.5,.1,0)"
 	bboxes = eng.eval(cmd)
@@ -64,7 +76,7 @@ def showVideo(vid):
 		if cv.waitKey(1) & 0xFF == ord('q'): break
 		if i == len(vid)-1 and int(input("1 To Replay ")) == 1: i = 0
 		else: i+=1
-		
+	cv.destroyAllWindows()
 def readVideo(fname, n=-1, s=1):
 	vid = []
 	cap = cv.VideoCapture(fname)
@@ -79,6 +91,7 @@ def readVideo(fname, n=-1, s=1):
 	return vid
 
 def getVideoBoxes(vid):
+	print("Computing Video Boxes")
 	boxes = []
 	for frame in vid: boxes.append([Box(i) for i in getImageBoxes(frame)])
 	return boxes 
@@ -128,15 +141,47 @@ def readWebCam(n=-1,s=1):
 		vid.append(frame)
 		if cv.waitKey(1) & 0xFF == ord('q'): break
 	return vid
+def readBoxes(filepath):
+	return cPickle.load(filepath)
 
-input("Read Input?")
-#vid = readWebCam(5,2)
-vid = readVideo('../test.mp4',4, 5)
-print(len(vid))
-boxes = getVideoBoxes(vid)
-print(boxes)
-track(boxes)
-drawBoxes(vid,boxes)
-showVideo(vid)
-#os.system('mkdir picdir')
-cv.destroyAllWindows()
+def endProgram(msg = None):
+	if msg: print(msg)
+	sys.exit()
+
+if __name__ == "__main__":
+	if args['webcam']: vid = readWebCam(args["number_of_frames"], args["skip_rate"])
+	elif args['video']: vid = readVideo(os.path.join('..',args["video"]),args["number_of_frames"], args["skip_rate"])
+	else: endProgram("No Video Input Given. Use the --video or --webcam flags to provide video input.")
+	print("Read video of size", len(vid), "given maximum number of frames =", args["number_of_frames"], "and skip rate =", args["skip_rate"], "frames")
+	if args["boxes"]: boxes = readBoxes(os.path.join('..',args["boxes"]))
+	else: boxes = getVideoBoxes(vid) 
+	if args["track"]: track(boxes)
+	else: print("Tracking Disabled")
+	drawBoxes(vid,boxes)
+	if not args["no_display"]: showVideo(vid)
+	
+'''
+if __name__ == "__main__":
+	if len(sys.argv) >= 2: vidFile = sys.argv[1]
+	else: vidFile = input("Video Input File (web for WebCam): ")
+	if len(sys.argv) >= 3: n = int(sys.argv[2])
+	else: n = int(input("Maximum Frames (-1 For all Frames): "))
+	
+	if len(sys.argv) >= 4: s = int(sys.argv[3])
+	else: s = int(input("Skip Rate (1 For all Frames): ")) 
+	if vidFile.lower() == "web": vid = readWebCam(n,s)
+	else vid = readVideo(os.path.join('..',vidFile),n,s)
+	print("Frames Captured:",len(vid))
+	
+	if len(sys.argv) >= 5: boxFile = sys.argv[5]
+	else: boxFile = input("Bounding Boxes File (None To Compute New Boxes): ")
+	if boxFile.lower() == "none": boxes = getVideoBoxes(vid)
+	else: boxes = cPickle.load(os.path.join('..',sys.argv[5])
+	
+	if len(sys.argv) >= 6: tracked = sys.argv[6]
+	else: tracked = "untracked"
+	if tracked.lower() == "untracked": track(boxes)
+	
+	drawBoxes(vid,boxes)
+	showVideo(vid)
+'''
