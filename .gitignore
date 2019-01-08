@@ -2,4 +2,5 @@
 *.png
 *.mp4
 *.pyc
+*.pkl
 deep-head-pose

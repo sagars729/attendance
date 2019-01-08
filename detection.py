@@ -26,12 +26,15 @@ ap.add_argument('-s', '--skip-rate',type=int,default=1,help="Skip Rate of Frames
 ap.add_argument('-b', '--boxes',help="Path To Bounding Boxes File")
 ap.add_argument('-t', '--track',help="Enable Tracking",action="store_true",default=False)
 ap.add_argument('--no-display',help="Disables Display",action="store_true",default=False)
+ap.add_argument('--save-boxes',help="Path To Save Bounding Boxes")
+ap.add_argument('--save-video',help="Path TO Save Video")
 args = vars(ap.parse_args())
 #### INIT SCRIPT ####
 os.chdir("tiny")#eng.eval("cd tiny")
 print("Changed Working Directory To Tiny")
-eng = matlab.engine.start_matlab()
-print("Matlab Engine Spun Up")
+if not args['boxes']: 
+	eng = matlab.engine.start_matlab()
+	print("Matlab Engine Spun Up")
 m = Munkres()
 #####################
 class Box:	
@@ -142,7 +145,17 @@ def readWebCam(n=-1,s=1):
 		if cv.waitKey(1) & 0xFF == ord('q'): break
 	return vid
 def readBoxes(filepath):
-	return cPickle.load(filepath)
+	return cPickle.load(open(filepath,'rb'))
+
+def writeBoxes(boxes,filepath):
+	cPickle.dump(boxes,open(filepath,'wb'))
+
+def writeVideo(vid,filepath):
+	if len(vid) == 0: return
+	fourcc = cv.VideoWriter_fourcc(*'mpv4')
+	out = cv.VideoWriter(filepath,0x7634706d, 20.0, (vid[0].shape[0],vid[0].shape[1]))
+	for frame in vid: out.write(frame)
+	out.release()
 
 def endProgram(msg = None):
 	if msg: print(msg)
@@ -159,7 +172,11 @@ if __name__ == "__main__":
 	else: print("Tracking Disabled")
 	drawBoxes(vid,boxes)
 	if not args["no_display"]: showVideo(vid)
-	
+	else: print("Display Disabled")
+	if args["save_boxes"]: writeBoxes(boxes,os.path.join('..',args["save_boxes"]))
+	else: print("Saving Boxes Disabled")
+	if args["save_video"]: writeVideo(vid,os.path.join('..',args["save_video"])) 
+	else: print("Saving Video Disabled")
 '''
 if __name__ == "__main__":
 	if len(sys.argv) >= 2: vidFile = sys.argv[1]
