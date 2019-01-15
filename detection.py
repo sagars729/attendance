@@ -177,28 +177,3 @@ if __name__ == "__main__":
 	else: print("Saving Boxes Disabled")
 	if args["save_video"]: writeVideo(vid,os.path.join('..',args["save_video"])) 
 	else: print("Saving Video Disabled")
-'''
-if __name__ == "__main__":
-	if len(sys.argv) >= 2: vidFile = sys.argv[1]
-	else: vidFile = input("Video Input File (web for WebCam): ")
-	if len(sys.argv) >= 3: n = int(sys.argv[2])
-	else: n = int(input("Maximum Frames (-1 For all Frames): "))
-	
-	if len(sys.argv) >= 4: s = int(sys.argv[3])
-	else: s = int(input("Skip Rate (1 For all Frames): ")) 
-	if vidFile.lower() == "web": vid = readWebCam(n,s)
-	else vid = readVideo(os.path.join('..',vidFile),n,s)
-	print("Frames Captured:",len(vid))
-	
-	if len(sys.argv) >= 5: boxFile = sys.argv[5]
-	else: boxFile = input("Bounding Boxes File (None To Compute New Boxes): ")
-	if boxFile.lower() == "none": boxes = getVideoBoxes(vid)
-	else: boxes = cPickle.load(os.path.join('..',sys.argv[5])
-	
-	if len(sys.argv) >= 6: tracked = sys.argv[6]
-	else: tracked = "untracked"
-	if tracked.lower() == "untracked": track(boxes)
-	
-	drawBoxes(vid,boxes)
-	showVideo(vid)
-'''
