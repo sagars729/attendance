@@ -4,3 +4,6 @@
 *.pyc
 *.pkl
 deep-head-pose
+imdata
+*.avi
+*.db
