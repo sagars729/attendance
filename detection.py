@@ -9,6 +9,10 @@ import _pickle as cPickle
 from munkres import Munkres
 import _pickle as cPickle
 import argparse
+import sqlite3 as sql
+import datetime
+import hashlib
+from progress.bar import Bar
 try:
 	from secrets import token_hex
 except ImportError:
@@ -25,9 +29,14 @@ ap.add_argument('-n', '--number-of-frames',type=int,default=-1,help="Maximum Num
 ap.add_argument('-s', '--skip-rate',type=int,default=1,help="Skip Rate of Frames")
 ap.add_argument('-b', '--boxes',help="Path To Bounding Boxes File")
 ap.add_argument('-t', '--track',help="Enable Tracking",action="store_true",default=False)
+ap.add_argument('--no-draw', help="Does Not Draw Boxes on Frames", action="store_true", default=False)
 ap.add_argument('--no-display',help="Disables Display",action="store_true",default=False)
 ap.add_argument('--save-boxes',help="Path To Save Bounding Boxes")
-ap.add_argument('--save-video',help="Path TO Save Video")
+ap.add_argument('--save-video',help="Path To Save Video")
+ap.add_argument('-i', '--imagedir', help='Path To Local Image Database')
+ap.add_argument('-d', '--database', help='Path To Local SQLite Database')
+ap.add_argument('-l', '--location', help="Unique Camera Location")
+ap.add_argument('-f', '--fps', type=float, default=20.0, help="Frames Per Second")
 args = vars(ap.parse_args())
 #### INIT SCRIPT ####
 os.chdir("tiny")#eng.eval("cd tiny")
@@ -80,13 +89,16 @@ def showVideo(vid):
 		if i == len(vid)-1 and int(input("1 To Replay ")) == 1: i = 0
 		else: i+=1
 	cv.destroyAllWindows()
+
 def readVideo(fname, n=-1, s=1):
+	print("Reading Video", fname)
 	vid = []
 	cap = cv.VideoCapture(fname)
 	i = -1
 	while cap.isOpened():
 		if len(vid) == n: break
 		ret, frame = cap.read()
+		if frame is None or frame.shape[0] <= 0 or frame.shape[1] <= 1: break
 		i+=1
 		if i%s != 0: continue
 		vid.append(frame)
@@ -95,8 +107,12 @@ def readVideo(fname, n=-1, s=1):
 
 def getVideoBoxes(vid):
 	print("Computing Video Boxes")
+	bar = Bar('Computing Frames', max=len(vid))
 	boxes = []
-	for frame in vid: boxes.append([Box(i) for i in getImageBoxes(frame)])
+	for frame in vid: 
+		boxes.append([Box(i) for i in getImageBoxes(frame)])
+		bar.next()
+	bar.finish()
 	return boxes 
 
 def drawBoxes(vid,boxes):
@@ -132,7 +148,8 @@ def readWebCam(n=-1,s=1):
 	DCS_IP = "198.38.18.121"#"192.168.1.29"
 	userauth = ('admin', 'pass098')
 	streamurl = "http://" + ':'.join(userauth) + '@' + DCS_IP + "/video/mjpg.cgi?type=.mjpg" 
-	vid = []
+	return readVideo(streamurl,n,s)
+	'''vid = []
 	cap = cv.VideoCapture(streamurl)
 	i = -1
 	while True:
@@ -143,19 +160,45 @@ def readWebCam(n=-1,s=1):
 		if i%s != 0: continue
 		vid.append(frame)
 		if cv.waitKey(1) & 0xFF == ord('q'): break
-	return vid
+	return vid'''
+
 def readBoxes(filepath):
+	print("Reading Boxes From", filepath)
 	return cPickle.load(open(filepath,'rb'))
 
 def writeBoxes(boxes,filepath):
+	print("Saving Boxes To", filepath)
 	cPickle.dump(boxes,open(filepath,'wb'))
 
 def writeVideo(vid,filepath):
+	print("Saving Video To", filepath)
 	if len(vid) == 0: return
-	fourcc = cv.VideoWriter_fourcc(*'mpv4')
-	out = cv.VideoWriter(filepath,0x7634706d, 20.0, (vid[0].shape[0],vid[0].shape[1]))
+	fourcc = cv.VideoWriter_fourcc(*'DIV3') 
+	#fourcc = 0x7634706d
+	print(vid[0].shape[0], vid[0].shape[1])
+	out = cv.VideoWriter(filepath,fourcc, args["fps"], (vid[0].shape[1],vid[0].shape[0]))
+	if not out.isOpened(): print("Video Writer Is Not Opened")
 	for frame in vid: out.write(frame)
 	out.release()
+
+def cropImage(frame, bboxes, imagedir, camid):
+	if camid not in os.listdir(imagedir): os.system('mkdir "' + os.path.join(imagedir,camid) + '"') #Fix Broken Path
+	date = str(datetime.datetime.today()).split(' ')[0]	#Get Date
+	if date not in os.listdir(os.path.join(imagedir,camid)): os.system('mkdir "' + os.path.join(imagedir,camid,date) + '"') #Fix Broken Path
+	for box in bboxes:
+		if box.coord == None: continue
+		crop_img = frame[int(box.coord[1]):int(box.coord[3]) , int(box.coord[0]):int(box.coord[2])] 
+		if str(box.id) not in os.listdir(os.path.join(imagedir,camid,date)): os.system('mkdir "' + os.path.join(imagedir,camid,date,str(box.id)) + '"') #Fix Broken Path
+		impath = os.path.join(imagedir,camid,date,str(box.id),str(datetime.datetime.today())+".jpg")
+		cv.imwrite(impath, crop_img)
+
+def cropVideo(vid,bboxes,imagedir,camid):
+	print("Generating Raw Image Database")	
+	bar = Bar('Cropping Frames', max=len(vid))
+	for i in range(len(vid)): 
+		cropImage(vid[i],bboxes[i],imagedir,camid)
+		bar.next()
+	bar.finish()
 
 def endProgram(msg = None):
 	if msg: print(msg)
@@ -166,14 +209,24 @@ if __name__ == "__main__":
 	elif args['video']: vid = readVideo(os.path.join('..',args["video"]),args["number_of_frames"], args["skip_rate"])
 	else: endProgram("No Video Input Given. Use the --video or --webcam flags to provide video input.")
 	print("Read video of size", len(vid), "given maximum number of frames =", args["number_of_frames"], "and skip rate =", args["skip_rate"], "frames")
+	
 	if args["boxes"]: boxes = readBoxes(os.path.join('..',args["boxes"]))
 	else: boxes = getVideoBoxes(vid) 
 	if args["track"]: track(boxes)
 	else: print("Tracking Disabled")
-	drawBoxes(vid,boxes)
+	
+	if not args["location"]: print("No location input Given. Use the --location flag to provide the location of the camera. Database generation disabled.")
+	elif not args["imagedir"]: print("No Image Database Directory Given. use the --imagedir flag to provide the location of the raw image database. Database generation disabled.")
+	else: cropVideo(vid, boxes, os.path.join('..',args["imagedir"]), args["location"])
+	
+	if not args["no_draw"]: drawBoxes(vid,boxes)
+	else: print("Drawing Disabled")
 	if not args["no_display"]: showVideo(vid)
 	else: print("Display Disabled")
+	
 	if args["save_boxes"]: writeBoxes(boxes,os.path.join('..',args["save_boxes"]))
 	else: print("Saving Boxes Disabled")
 	if args["save_video"]: writeVideo(vid,os.path.join('..',args["save_video"])) 
 	else: print("Saving Video Disabled")
+
+	
