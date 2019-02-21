@@ -9,7 +9,7 @@ import _pickle as cPickle
 from munkres import Munkres
 import _pickle as cPickle
 import argparse
-import sqlite3 as sql
+import sqlite3
 import datetime
 import hashlib
 from progress.bar import Bar
@@ -124,43 +124,42 @@ def drawBoxes(vid,boxes):
 			if(coords == None): continue
 			frame = cv.rectangle(frame, (int(coords[0]), int(coords[1])), (int(coords[2]), int(coords[3])), box.color, 2)
 
-def track(boxes):
+def match(prev,curr,runid,frame=0):
+	lc = len(curr)
+	lp = len(prev)
+	print(lp,lc)
+	if len(curr) < len(prev): 
+		print(len(prev) - len(curr), "Old Faces Not Detected at Frame", frame)
+		curr += [Box(None) for i in range(0,len(prev)-len(curr))] #Old Faces Not Detected
+	if len(prev) < len(curr): #New Faces Detected
+		print(len(curr) - len(prev), "New Faces Detected at Frame", frame)
+		runid += len(curr) - len(prev)
+		prev += [Box(None,runid-i) for i in range(0,len(curr)-len(prev))]
+	cmat = [[-1*c.IoU(p) for p in prev] for c in curr]
+	matches = m.compute(cmat)
+	for c,p in matches: curr[c].setId(prev[p].id)	
+	curr = curr[0:lc]
+	prev = prev[0:lp]
+	return runid
+	
+def track(boxes,baseid=0):
+	print("Tracking Faces")
 	if(len(boxes)==0): return
 	bboxes = boxes[0]
 	maxid = len(boxes[0])
-	for i in range(len(bboxes)): bboxes[i].setId(i)
-	for i in range(1,len(boxes)):
-		curr = boxes[i]
-		prev = boxes[i-1]
-		lc = len(curr)
-		lp = len(prev)		
-		if len(curr) < len(prev): curr += [Box(None) for i in range(0,len(prev)-len(curr))]
-		if len(prev) < len(curr):
-			maxid += len(curr) - len(prev)
-			prev = prev + [Box(None,maxid-i) for i in range(0,len(curr)-len(prev))]
-		cmat = [[-1*c.IoU(p) for p in prev] for c in curr]
-		matches = m.compute(cmat)
-		for c,p in matches: curr[c].setId(prev[p].id)				
-		curr = curr[0:lc]
-		prev = prev[0:lp]
+	for i in range(len(bboxes)):  bboxes[i].setId(i+baseid)
+	runid = baseid + len(bboxes)
+	for i in range(1,len(boxes)): 
+		print(len(boxes[i-1]), len(boxes[i]))
+		runid = match(prev=boxes[i-1],curr=boxes[i],runid=runid,frame=i)
+	print("Found", runid-baseid, "Unique Faces")
+	return runid
 	
 def readWebCam(n=-1,s=1):
 	DCS_IP = "198.38.18.121"#"192.168.1.29"
 	userauth = ('admin', 'pass098')
 	streamurl = "http://" + ':'.join(userauth) + '@' + DCS_IP + "/video/mjpg.cgi?type=.mjpg" 
 	return readVideo(streamurl,n,s)
-	'''vid = []
-	cap = cv.VideoCapture(streamurl)
-	i = -1
-	while True:
-		if len(vid) == n: break
-		ret, frame = cap.read()
-		cv.imshow('Input',frame)
-		i+=1
-		if i%s != 0: continue
-		vid.append(frame)
-		if cv.waitKey(1) & 0xFF == ord('q'): break
-	return vid'''
 
 def readBoxes(filepath):
 	print("Reading Boxes From", filepath)
@@ -181,24 +180,32 @@ def writeVideo(vid,filepath):
 	for frame in vid: out.write(frame)
 	out.release()
 
-def cropImage(frame, bboxes, imagedir, camid):
+def cropImage(frame, bboxes, imagedir, camid,cursor):
 	if camid not in os.listdir(imagedir): os.system('mkdir "' + os.path.join(imagedir,camid) + '"') #Fix Broken Path
 	date = str(datetime.datetime.today()).split(' ')[0]	#Get Date
 	if date not in os.listdir(os.path.join(imagedir,camid)): os.system('mkdir "' + os.path.join(imagedir,camid,date) + '"') #Fix Broken Path
 	for box in bboxes:
 		if box.coord == None: continue
+		if box.id == None: continue
 		crop_img = frame[int(box.coord[1]):int(box.coord[3]) , int(box.coord[0]):int(box.coord[2])] 
 		if str(box.id) not in os.listdir(os.path.join(imagedir,camid,date)): os.system('mkdir "' + os.path.join(imagedir,camid,date,str(box.id)) + '"') #Fix Broken Path
-		impath = os.path.join(imagedir,camid,date,str(box.id),str(datetime.datetime.today())+".jpg")
+		tod = datetime.datetime.today()
+		impath = os.path.join(imagedir,camid,date,str(box.id),str(tod)+".jpg")
 		cv.imwrite(impath, crop_img)
+		if cursor: cursor.execute("insert into records values(?,?,?,?,?,?)",(impath,str(tod),camid,crop_img.size,box.id,-1))
 
-def cropVideo(vid,bboxes,imagedir,camid):
+def cropVideo(vid,bboxes,imagedir,camid,sql=None):
 	print("Generating Raw Image Database")	
 	bar = Bar('Cropping Frames', max=len(vid))
+	print("Generating SQLite Database")
+	conn = sqlite3.connect(sql)
+	c = conn.cursor()
 	for i in range(len(vid)): 
-		cropImage(vid[i],bboxes[i],imagedir,camid)
+		cropImage(vid[i],bboxes[i],imagedir,camid,c)
 		bar.next()
 	bar.finish()
+	conn.commit()
+	conn.close()
 
 def endProgram(msg = None):
 	if msg: print(msg)
@@ -216,8 +223,9 @@ if __name__ == "__main__":
 	else: print("Tracking Disabled")
 	
 	if not args["location"]: print("No location input Given. Use the --location flag to provide the location of the camera. Database generation disabled.")
-	elif not args["imagedir"]: print("No Image Database Directory Given. use the --imagedir flag to provide the location of the raw image database. Database generation disabled.")
-	else: cropVideo(vid, boxes, os.path.join('..',args["imagedir"]), args["location"])
+	elif not args["imagedir"]: print("No Image Database Directory Given. Use the --imagedir flag to provide the location of the raw image database. Database generation disabled.")
+	elif not args["database"]: print("No SQLite Database Given. Use the --database flag to provide the location of the SQLite Database. Database generation disabled.")
+	else: cropVideo(vid, boxes, os.path.join('..',args["imagedir"]), args["location"], os.path.join('..',args["database"]))
 	
 	if not args["no_draw"]: drawBoxes(vid,boxes)
 	else: print("Drawing Disabled")
