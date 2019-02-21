@@ -1,3 +1,6 @@
 [submodule "tiny"]
 	path = tiny
 	url = git@github.com:sagars729/tiny.git
+[submodule "keras-spp"]
+	path = keras-spp
+	url = git@github.com:yhenon/keras-spp.git
