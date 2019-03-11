@@ -127,12 +127,12 @@ def drawBoxes(vid,boxes):
 def match(prev,curr,runid,frame=0):
 	lc = len(curr)
 	lp = len(prev)
-	print(lp,lc)
+	#print(lp,lc)
 	if len(curr) < len(prev): 
-		print(len(prev) - len(curr), "Old Faces Not Detected at Frame", frame)
+		#print(len(prev) - len(curr), "Old Faces Not Detected at Frame", frame)
 		curr += [Box(None) for i in range(0,len(prev)-len(curr))] #Old Faces Not Detected
 	if len(prev) < len(curr): #New Faces Detected
-		print(len(curr) - len(prev), "New Faces Detected at Frame", frame)
+		#print(len(curr) - len(prev), "New Faces Detected at Frame", frame)
 		runid += len(curr) - len(prev)
 		prev += [Box(None,runid-i) for i in range(0,len(curr)-len(prev))]
 	cmat = [[-1*c.IoU(p) for p in prev] for c in curr]
@@ -221,6 +221,8 @@ if __name__ == "__main__":
 	else: boxes = getVideoBoxes(vid) 
 	if args["track"]: track(boxes)
 	else: print("Tracking Disabled")
+	if args["save_boxes"]: writeBoxes(boxes,os.path.join('..',args["save_boxes"]))
+	else: print("Saving Boxes Disabled")
 	
 	if not args["location"]: print("No location input Given. Use the --location flag to provide the location of the camera. Database generation disabled.")
 	elif not args["imagedir"]: print("No Image Database Directory Given. Use the --imagedir flag to provide the location of the raw image database. Database generation disabled.")
@@ -229,12 +231,10 @@ if __name__ == "__main__":
 	
 	if not args["no_draw"]: drawBoxes(vid,boxes)
 	else: print("Drawing Disabled")
+	if args["save_video"]: writeVideo(vid,os.path.join('..',args["save_video"])) 
+	else: print("Saving Video Disabled")
 	if not args["no_display"]: showVideo(vid)
 	else: print("Display Disabled")
 	
-	if args["save_boxes"]: writeBoxes(boxes,os.path.join('..',args["save_boxes"]))
-	else: print("Saving Boxes Disabled")
-	if args["save_video"]: writeVideo(vid,os.path.join('..',args["save_video"])) 
-	else: print("Saving Video Disabled")
 
 	
