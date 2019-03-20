@@ -13,6 +13,7 @@ import sqlite3
 import datetime
 import hashlib
 from progress.bar import Bar
+from random import random
 try:
 	from secrets import token_hex
 except ImportError:
@@ -52,11 +53,11 @@ class Box:
 		if vals != None: self.area = abs(vals[2] - vals[0])*abs(vals[3]-vals[1])
 		self.id = i_d
 		if self.id == None: self.color = (0,255,0)
-		else: self.color = (255-self.id*10,0,self.id*10)
-	def setId(self,i_d,coef=40):
+		else: self.color = (int(255*random()), int(255*random()), int(255*random()))#(255-self.id*10,0,self.id*10)
+	def setId(self,i_d,coef=40,color=(0,255,0)):
 		self.id = i_d
-		if self.id == None: self.color = (0,255,0)
-		else: self.color = (255-self.id*coef,0,self.id*coef)
+		self.color = color#(int(255*random()), int(255*random()), int(255*random()))
+		print(self.color)
 	def IoU(self, other):
 		if self.coord == None or other.coord == None: return .01
 		boxA = self.coord
@@ -127,31 +128,27 @@ def drawBoxes(vid,boxes):
 def match(prev,curr,runid,frame=0):
 	lc = len(curr)
 	lp = len(prev)
-	#print(lp,lc)
-	if len(curr) < len(prev): 
-		#print(len(prev) - len(curr), "Old Faces Not Detected at Frame", frame)
-		curr += [Box(None) for i in range(0,len(prev)-len(curr))] #Old Faces Not Detected
-	if len(prev) < len(curr): #New Faces Detected
-		#print(len(curr) - len(prev), "New Faces Detected at Frame", frame)
-		runid += len(curr) - len(prev)
-		prev += [Box(None,runid-i) for i in range(0,len(curr)-len(prev))]
+	if lc < lp: 
+		curr += [Box(None) for i in range(0,lp-lc)] #Old Faces Not Detected
+	elif lp < lc: #New Faces Detected
+		runid += lc - lp
+		prev += [Box(None,runid-i) for i in range(0,lc-lp)]
 	cmat = [[-1*c.IoU(p) for p in prev] for c in curr]
 	matches = m.compute(cmat)
-	for c,p in matches: curr[c].setId(prev[p].id)	
+	for c,p in matches: curr[c].setId(prev[p].id,color=prev[p].color)	
 	curr = curr[0:lc]
 	prev = prev[0:lp]
-	return runid
+	return runid, curr, prev
 	
 def track(boxes,baseid=0):
 	print("Tracking Faces")
 	if(len(boxes)==0): return
 	bboxes = boxes[0]
 	maxid = len(boxes[0])
-	for i in range(len(bboxes)):  bboxes[i].setId(i+baseid)
+	for i in range(len(bboxes)):  bboxes[i].setId(i+baseid,color=(int(255*random()),int(255*random()),int(255*random())))
 	runid = baseid + len(bboxes)
 	for i in range(1,len(boxes)): 
-		print(len(boxes[i-1]), len(boxes[i]))
-		runid = match(prev=boxes[i-1],curr=boxes[i],runid=runid,frame=i)
+		runid, boxes[i], boxes[i-1] = match(prev=boxes[i-1],curr=boxes[i],runid=runid,frame=i)
 	print("Found", runid-baseid, "Unique Faces")
 	return runid
 	
@@ -180,7 +177,7 @@ def writeVideo(vid,filepath):
 	for frame in vid: out.write(frame)
 	out.release()
 
-def cropImage(frame, bboxes, imagedir, camid,cursor):
+def cropImage(frame, bboxes, imagedir, camid, cursor, i):
 	if camid not in os.listdir(imagedir): os.system('mkdir "' + os.path.join(imagedir,camid) + '"') #Fix Broken Path
 	date = str(datetime.datetime.today()).split(' ')[0]	#Get Date
 	if date not in os.listdir(os.path.join(imagedir,camid)): os.system('mkdir "' + os.path.join(imagedir,camid,date) + '"') #Fix Broken Path
@@ -192,7 +189,9 @@ def cropImage(frame, bboxes, imagedir, camid,cursor):
 		tod = datetime.datetime.today()
 		impath = os.path.join(imagedir,camid,date,str(box.id),str(tod)+".jpg")
 		cv.imwrite(impath, crop_img)
-		if cursor: cursor.execute("insert into records values(?,?,?,?,?,?)",(impath,str(tod),camid,crop_img.size,box.id,-1))
+		w = int(box.coord[2] - box.coord[0])
+		h = int(box.coord[3] - box.coord[1])
+		if cursor: cursor.execute("insert into records values(?,?,?,?,?,?,?,?,?,?,?,?)",(impath,str(tod),camid,crop_img.size,box.id,-1,w,h,h/w,int(box.coord[0]),int(box.coord[1]),i))
 
 def cropVideo(vid,bboxes,imagedir,camid,sql=None):
 	print("Generating Raw Image Database")	
@@ -201,7 +200,7 @@ def cropVideo(vid,bboxes,imagedir,camid,sql=None):
 	conn = sqlite3.connect(sql)
 	c = conn.cursor()
 	for i in range(len(vid)): 
-		cropImage(vid[i],bboxes[i],imagedir,camid,c)
+		cropImage(vid[i],bboxes[i],imagedir,camid,c,i)
 		bar.next()
 	bar.finish()
 	conn.commit()
@@ -210,6 +209,18 @@ def cropVideo(vid,bboxes,imagedir,camid,sql=None):
 def endProgram(msg = None):
 	if msg: print(msg)
 	sys.exit()
+
+def debug(boxes):
+	for i in range(len(boxes)): 
+		print(len(boxes[i]),end=" ")
+		stp = len(boxes[i])
+		for j in range(len(boxes[i])):
+			if boxes[i][j].coord == None:
+				stp = j
+				break
+			print(j, end = " ")
+		print("|",stp)
+		boxes[i] = boxes[i][0:stp]
 
 if __name__ == "__main__":
 	if args['webcam']: vid = readWebCam(args["number_of_frames"], args["skip_rate"])
@@ -236,5 +247,6 @@ if __name__ == "__main__":
 	if not args["no_display"]: showVideo(vid)
 	else: print("Display Disabled")
 	
+
 
 	
