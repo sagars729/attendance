@@ -7,8 +7,8 @@ from math import ceil
 ###adapted from SPP Github###
 batch_size = 64
 num_channels = 1
-num_classes = 2
-epoch_size = 640
+num_classes = 1
+epoch_size = 64*2
 
 face_img = Input(shape=(None,None,num_channels))
 
@@ -36,16 +36,19 @@ except Exception as e:
 	recog_model = Model([face_a, face_b], full_1)
 	recog_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
+def gen_pair(s):
+	pass	
 def gen_data():
 	s = 64
 	while True:		
 		data = [256*np.random.rand(epoch_size, s, s, num_channels) for i in range(2)]
-		labels = np.zeros((epoch_size,num_classes))
+		labels = np.zeros((epoch_size))#,num_classes))
 		if s == 64: s = 32
 		else: s = 64	
 		yield (data,labels)
+
 gendata = gen_data()
-recog_model.fit_generator(gendata,use_multiprocessing=True,steps_per_epoch=ceil(epoch_size/batch_size),epochs=5)
+recog_model.fit_generator(gendata,use_multiprocessing=True,steps_per_epoch=ceil(epoch_size/batch_size),epochs=1)
 
 recog_model.save('match.h5')
 
