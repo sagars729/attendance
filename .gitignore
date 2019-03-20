@@ -1,0 +1,10 @@
+*.jpg
+*.png
+*.mp4
+*.pyc
+*.pkl
+deep-head-pose
+imdata
+*.avi
+*.db
+*.json
