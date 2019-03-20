@@ -104,7 +104,7 @@ if __name__ == "__main__":
 	connect()
 	print(conn,curs)
 	while True: 
-		inp = int(input("0 To Tag\n1 To Visualize\n2 To Reset\n3 To See Registered Users\n4 To Add New User\n5 To Update Existing User\n-1 To Save and Quit\n-2 To Save\nCommand: "))
+		inp = int(input("0 To Tag\n1 To Visualize\n2 To Reset\n3 To See Registered Users\n4 To Add New User\n5 To Update Existing User\n6 To Save To JSON\n7 To Load JSON\n-1 To Save and Quit\n-2 To Save\nCommand: "))
 		if(inp == -1): break 
 		elif(inp == -2): conn.commit()
 		elif(inp == 0): tag_inp()
