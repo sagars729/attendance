@@ -26,6 +26,13 @@ Everyday, teachers across the nation engage in the crucial activity of taking at
 </p>
 
 **Workflow.** The complete workflow of how each program interacts with every other program and system in this project.
+- **read_and_classify.sh** - bash script for reading input data (a video) and classifying all faces found within that video
+- **detection.py** - detects and tracks faces in a input video
+- **tag.py** - tags batches of pictures using their tracking labels for training or testing
+- **class_train.py** - trains a facial recognition model for a specific class
+- **read_and_classify_web.sh** - bash script for reading input data given by the web interface and classifying all faces found within that video
+- **website/app.js** - server code that hosts the web interface
+- **website/Run/index.hbs** - hbs code that renders the web interface
 
 ## Model
 
