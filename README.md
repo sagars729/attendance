@@ -2,6 +2,11 @@
 
 This repository has all the code from my independent research project at TJHSST's Computer Systems Lab on Automating Classroom Attendance Using Facial Recognition and Interactive Machine Learning. 
 
+1. [Useful Links](#useful-links) - Includes the link to the paper, poster, and presentation associated with this project (submitted for TJStar) as well as useful resources I found while developing this project and a link to a card on my former website describing this project. 
+2. [Abstract](#abstract) - Abstract from the paper I wrote on this project. 
+3. [Code Overview](#code-overview) - Simple overview of all code in this project and worfkflow.
+4. [Model](#model) - Simple diagram showcasing the ML model I used for this project. 
+
 ## Useful Links 
 
 Project Website: https://user.tjhsst.edu/2019ssaxena/documents/attendance_paper.pdf  
