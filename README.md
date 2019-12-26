@@ -13,8 +13,8 @@ This repository has all the code from my independent research project at TJHSST'
 
 ## Useful Links 
 
-Project Website: https://user.tjhsst.edu/2019ssaxena/documents/attendance_paper.pdf  
-Paper: https://user.tjhsst.edu/2019ssaxena/attendance  
+Paper: https://user.tjhsst.edu/2019ssaxena/documents/attendance_paper.pdf  
+Project Website: https://user.tjhsst.edu/2019ssaxena/attendance  
 Poster: https://user.tjhsst.edu/2019ssaxena/documents/attendance_poster.pdf  
 Presentation: https://user.tjhsst.edu/2019ssaxena/documents/attendance_presentation.pdf  
 Resources: https://user.tjhsst.edu/2019ssaxena/documents/attendance_resources.pdf  
